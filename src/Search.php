@@ -31,6 +31,7 @@ class Search
     private static $selectedEndpoint = "source_1";
 
     /**
+     * Function that requests the necessary data according to the parameters passed to return the hotels
      * @param float|null $latitude
      * @param float|null $longitude
      * @param string|null $orderby
@@ -80,6 +81,7 @@ class Search
     }
 
     /**
+     * Function to generate pagination in the search
      * @param int|null $page
      * @param int|null $limit
      * @param array $data
@@ -107,6 +109,7 @@ class Search
     }
 
     /**
+     * Function to order the information obtained according to the "proximity" or "pricepernight" parameters
      * @param string $orderby
      * @param array $data
      * @return array
@@ -129,6 +132,7 @@ class Search
     }
 
     /**
+     * Function to generate Hotel data in relation to coordinates
      * @param float $latitude
      * @param float $longitude
      * @param array $data
@@ -158,6 +162,7 @@ class Search
     }
 
     /**
+     * Function to calculate and determine the distance between locations
      * @param float $latitude1
      * @param float $longitude1
      * @param float $latitude2
@@ -181,6 +186,7 @@ class Search
     }
 
     /**
+     * Function to request data from the given source
      * @param string|null $order
      * @return mixed
      * @throws \XLR8\Exception\XLR8Exception
@@ -198,6 +204,7 @@ class Search
     }
 
     /**
+     * Function to perform the request on XLR8 endpoints
      * @param string $method
      * @param string $uri
      * @param array $params
@@ -217,6 +224,7 @@ class Search
     }
 
     /**
+     * Function get to return the endpoint
      * @return string
      */
     private static function getEndPoint() : string
@@ -225,6 +233,7 @@ class Search
     }
 
     /**
+     * Function to retrieve hotel lists through endpoints
      * @param array|null $addSources
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
@@ -246,6 +255,7 @@ class Search
     }
 
     /**
+     * Function to select XLR8 endpoint
      * @param string $nameEndpoint
      * @return void
      */
@@ -257,6 +267,7 @@ class Search
     }
 
     /**
+     * Function to check if the returned value is not null and thus filter it
      * @param string $label
      * @param string|null $value
      * @return void
@@ -270,6 +281,7 @@ class Search
     }
 
     /**
+     * Function to convert currencies to the desired region
      * @param float $amount
      * @param string $locale
      * @param string $currency
@@ -295,6 +307,7 @@ class Search
     }
 
     /**
+     * Function to generate the formatted list of the response to be sent to the client
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
      */
@@ -310,6 +323,7 @@ class Search
     }
 
     /**
+     * Function to generate a formatted response to the client as JSON
      * @return void
      */
     private static function response($data)
