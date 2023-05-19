@@ -1,0 +1,32 @@
+{
+    "name": "urieldavid/xlr8",
+    "description": "XLR8 Backend Interview",
+    "type": "library",
+    "license": "MIT",
+    "minimum-stability": "stable",
+    "authors": [
+        {
+            "name": "Uriel-David",
+            "email": "uriel.dqaa@gmail.com",
+            "role": "Software Engineer",
+            "homepage": "https://www.uriel-portfolio.com/"
+        }
+    ],
+    "config": {
+        "vendor-dir": "vendor"
+    },
+    "autoload": {
+        "psr-4": {
+          "XLR8\\": "src"
+        }
+    },
+    "require": {
+        "php": "^8.1",
+        "ext-dom": "*",
+        "ext-pdo": "*",
+        "ext-intl": "*",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "guzzlehttp/guzzle": "^7.0"
+    }
+}
