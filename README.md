@@ -2,6 +2,9 @@
 Project to develop PHP package for testing in XLR8. The project consists of creating a PHP library to consume the XLR8 API, and with that, through the coordinates of Latitude and Longitude, generate a list of hotels closest to you or cheaper.
 
 ## Library Setup with Composer
+```shell
+composer require urieldavid/desafio_xlr8_php
+```
 
 ## Use the library
 
