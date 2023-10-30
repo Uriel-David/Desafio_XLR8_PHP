@@ -17,7 +17,7 @@ class Search
     const ITEM_PARAM_LOG = 2;
     const ITEM_PARAM_PRICE = 3;
     const PARAM_ORDER_BY_PROXIMITY = "proximity";
-    const PARAM_ORDER_BY_PRICE_NIGHT = "price night";
+    const PARAM_ORDER_BY_PRICE_NIGHT = "pricepernight";
     const VALID_ORDER_BY = [
         self::PARAM_ORDER_BY_PROXIMITY,
         self::PARAM_ORDER_BY_PRICE_NIGHT,
@@ -48,7 +48,7 @@ class Search
         ? float  $longitude,
         ? string $orderby = "proximity",
         ? int $page = 0,
-        ? int $limit = 15,
+        ? int $limit = 0,
         ? bool $responseJson = false,
         ? string $selectSource = null,
         ? array $addSources = null
@@ -74,10 +74,10 @@ class Search
         if ($responseJson) {
             $response = ['orderby' => $orderby];
             $response = array_merge($response, self::pagination($page, $limit, $dataOrderned));
-            self::response($response);
-        } else {
-            self::responseList($dataOrderned);
+            return self::response($response);
         }
+
+        return self::responseList($dataOrderned, $page, $limit);
     }
 
     /**
@@ -118,11 +118,27 @@ class Search
     {
         if ($orderby === self::PARAM_ORDER_BY_PROXIMITY) {
             $cmp = function ($a, $b) {
-                return strcmp($a["km"], $b["km"]);
+                $kmA = floatval($a["km"]);
+                $kmB = floatval($b["km"]);
+            
+                if ($kmA === $kmB) {
+                    return 0;
+                }
+            
+                return ($kmA < $kmB) ? -1 : 1;
             };
         } else {
             $cmp = function ($a, $b) {
-                return strcmp($a["price"], $b["price"]);
+                $priceA = floatval($a["price"]);
+                $priceB = floatval($b["price"]);
+            
+                if ($priceA == $priceB) {
+                    return 0;
+                } elseif ($priceA < $priceB) {
+                    return -1;
+                } else {
+                    return 1;
+                }
             };
         }
 
@@ -311,15 +327,19 @@ class Search
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
      */
-    private static function responseList(array $data, string $separator = " &bull; ")
+    private static function responseList(array $data, $page = 0, $pageSize = 0, $separator = " &bull; ")
     {
+        $startIndex = ($page - 1) * $pageSize;
+        $pagedData = $page === 0 && $pageSize === 0 ? $data : array_slice($data, $startIndex, $pageSize);
+
         $formatedData = [];
 
-        foreach ($data as $item) {
-            $formatedData[] = sprintf("%s, %s, %s", $item['hotel'], $item['km'] . " KM", self::currencyConvert($item['price']));
+        foreach ($pagedData as $item) {
+            $formattedItem = sprintf("%s, %s, %s", $item['hotel'], $item['km'] . " KM", self::currencyConvert($item['price']));
+            $formatedData[] = $separator . $formattedItem;
         }
 
-        echo $separator . implode($separator, $formatedData);
+        echo implode('<br/>', $formatedData);
     }
 
     /**
