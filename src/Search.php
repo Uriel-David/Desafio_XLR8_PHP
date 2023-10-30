@@ -73,7 +73,7 @@ class Search
 
         if ($responseJson) {
             $response = ['orderby' => $orderby];
-            $response = array_merge($response, self::pagination($page, $limit, $dataOrderned));
+            $response = $page === 0 || $limit === 0 ? array_merge($response, ["data" => $dataOrderned]) : array_merge($response, self::pagination($page, $limit, $dataOrderned));
             return self::response($response);
         }
 
@@ -89,7 +89,6 @@ class Search
      */
     private static function pagination(? int $page, ? int $limit, array $data) : array
     {
-        $page++;
         $total = count($data);
         $limit = $limit ?? 20;
         $totalPages = ceil($total / $limit);
@@ -330,7 +329,7 @@ class Search
     private static function responseList(array $data, $page = 0, $pageSize = 0, $separator = " &bull; ")
     {
         $startIndex = ($page - 1) * $pageSize;
-        $pagedData = $page === 0 && $pageSize === 0 ? $data : array_slice($data, $startIndex, $pageSize);
+        $pagedData = $page === 0 || $pageSize === 0 ? $data : array_slice($data, $startIndex, $pageSize);
 
         $formatedData = [];
 
