@@ -23,4 +23,6 @@ Obs.:
 - Default param required `getNearbyHotels($latitude, $longitude)`
 - To set sort by `"pricepernight"` `getNearbyHotels($latitude, $longitude, "pricepernight")`
 - By default sorting is by `"proximity"`
-- Others params: `int $page = 0, int $limit = 15, bool $responseJson = false, string $selectSource = null, array $addSources = null`
+- Others params: `int $page = 0, int $limit = 0, bool $responseJson = false, string $selectSource = null, array $addSources = null`
+
+  Obs.: By default it will bring all the results, if you want pagination then you need to pass the values ​​in the parameters, `$page = selected page` and `$limit = data limit per page`.
