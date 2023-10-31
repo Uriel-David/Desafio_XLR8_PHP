@@ -63,4 +63,6 @@ Obs.:
         ];
     ```
 
-  Obs.: By default it will bring all the results, if you want pagination then you need to pass the values ​​in the options param, `$page => selected page` and `$limit => data limit per page`.
+  Obs-1.: By default it will bring all the results, if you want pagination then you need to pass the values ​​in the options param, `$page => selected page` and `$limit => data limit per page`.
+
+  Obs-2.: It is optional but there is the possibility of setting the information cache time, `new Search(3600);`, in this case 3600 seconds are equivalent to 1 hour, by default the cache is 1 day 42300 seconds.

@@ -29,9 +29,11 @@ class Search
     private $configFile;
     private $config;
     private $client;
+    private $cache;
 
-    public function __construct(Client $client = new Client()) {
+    public function __construct(int $cache = 43200, Client $client = new Client()) {
         $this->client = $client;
+        $this->cache = $cache;
         $this->configFile = file_get_contents('config.json');
         $this->config = json_decode($this->configFile, true);
     }
@@ -208,7 +210,7 @@ class Search
         if (!in_array('success', $result) || !$result['success']) {
             throw new XLR8Exception("No data found");
         } else {
-            Cache::set('api_data_' . $order, $result['message']);
+            Cache::set('api_data_' . $order, $result['message'], $this->cache);
             return $result['message'];
         }
     }
