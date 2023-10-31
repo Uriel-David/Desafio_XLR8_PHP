@@ -2,6 +2,7 @@
 
 namespace XLR8;
 
+use XLR8\Cache;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use NumberFormatter;
@@ -24,11 +25,14 @@ class Search
     ];
     const ERROR_IS_REQUIRED = "%s is required";
     const ERROR_FORMATTER = "Formatter error";
-    private static $endpoints = [
-        'source_1' => 'https://xlr8-interview-files.s3.eu-west-2.amazonaws.com/source_1.json',
-        'source_2' => 'https://xlr8-interview-files.s3.eu-west-2.amazonaws.com/source_2.json',
-    ];
     private static $selectedEndpoint = "source_1";
+    private $configFile;
+    private $config;
+
+    public function __construct() {
+        $this->configFile = file_get_contents('config.json');
+        $this->config = json_decode($this->configFile, true);
+    }
 
     /**
      * Function that requests the necessary data according to the parameters passed to return the hotels
@@ -43,29 +47,24 @@ class Search
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
      */
-    public static function getNearbyHotels(
+    public function getNearbyHotels(
         ? float $latitude,
         ? float  $longitude,
         ? string $orderby = "proximity",
         ? int $page = 0,
         ? int $limit = 0,
         ? bool $responseJson = false,
-        ? string $selectSource = null,
-        ? array $addSources = null
+        ? string $selectSource = null
     ) {
         $order = in_array($orderby, self::VALID_ORDER_BY) ? $orderby : self::PARAM_ORDER_BY_PROXIMITY;
         self::verifyIsNull("Latitude", $latitude);
         self::verifyIsNull("Longitude", $longitude);
 
-        if ($addSources) {
-            self::addSources($addSources);
-        }
-
         if ($selectSource) {
-            self::selectEndPoint($selectSource);
+            self::selectEndPoint($this->config, $selectSource);
         }
 
-        $data = self::getDataFromSource($order);
+        $data = self::getDataFromSource($order, $this->config);
 
         $dataFormated = self::addMileage($latitude, $longitude, $data);
 
@@ -206,14 +205,21 @@ class Search
      * @return mixed
      * @throws \XLR8\Exception\XLR8Exception
      */
-    private static function getDataFromSource(? string $order)
+    public static function getDataFromSource($order, $config)
     {
         self::verifyIsNull("Order", $order);
-        $result = self::request('GET', self::getEndPoint());
+
+        $cachedData = Cache::get('api_data_' . $order);
+        if ($cachedData !== null) {
+            return $cachedData;
+        }
+
+        $result = self::request('GET', self::getEndPoint($config));
 
         if (!in_array('success', $result) || !$result['success']) {
             throw new XLR8Exception("No data found");
         } else {
+            Cache::set('api_data_' . $order, $result['message']);
             return $result['message'];
         }
     }
@@ -242,31 +248,9 @@ class Search
      * Function get to return the endpoint
      * @return string
      */
-    private static function getEndPoint() : string
+    private static function getEndPoint(array $config) : string
     {
-        return self::$endpoints[self::$selectedEndpoint];
-    }
-
-    /**
-     * Function to retrieve hotel lists through endpoints
-     * @param array|null $addSources
-     * @return void
-     * @throws \XLR8\Exception\XLR8Exception
-     */
-    private static function addSources(? array $addSources = null)
-    {
-        self::verifyIsNull("Sources list", $addSources);
-        $validSources = [];
-
-        foreach ($addSources as $key => $value) {
-            if (is_numeric($key) || empty($value) || !filter_var($value, FILTER_VALIDATE_URL)) {
-                continue;
-            }
-
-            $validSources[$key] = $value;
-        }
-
-        self::$endpoints = array_merge(self::$endpoints, $validSources);
+        return $config[self::$selectedEndpoint];
     }
 
     /**
@@ -274,10 +258,10 @@ class Search
      * @param string $nameEndpoint
      * @return void
      */
-    private static function selectEndPoint(string $nameEndpoint)
+    private static function selectEndPoint(array $config, string $nameEndpoint)
     {
-        if (in_array($nameEndpoint, self::$endpoints)) {
-            self::$selectedEndpoint = self::$endpoints[$nameEndpoint];
+        if (in_array($nameEndpoint, $config)) {
+            self::$selectedEndpoint = $config[$nameEndpoint];
         }
     }
 
@@ -322,6 +306,17 @@ class Search
     }
 
     /**
+     * Function to generate data otimize
+     * @return array
+     */
+    private static function processLargeData(array $data)
+    {
+        foreach ($data as $item) {
+            yield $item;
+        }
+    }
+
+    /**
      * Function to generate the formatted list of the response to be sent to the client
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
@@ -331,9 +326,10 @@ class Search
         $startIndex = ($page - 1) * $pageSize;
         $pagedData = $page === 0 || $pageSize === 0 ? $data : array_slice($data, $startIndex, $pageSize);
 
+        $dataOtimize = self::processLargeData($pagedData);
         $formatedData = [];
 
-        foreach ($pagedData as $item) {
+        foreach ($dataOtimize as $item) {
             $formattedItem = sprintf("%s, %s, %s", $item['hotel'], $item['km'] . " KM", self::currencyConvert($item['price']));
             $formatedData[] = $separator . $formattedItem;
         }
