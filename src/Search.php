@@ -25,58 +25,64 @@ class Search
     ];
     const ERROR_IS_REQUIRED = "%s is required";
     const ERROR_FORMATTER = "Formatter error";
-    private static $selectedEndpoint = "source_1";
+    private $selectedEndpoint = "source_2";
     private $configFile;
     private $config;
+    private $client;
 
-    public function __construct() {
+    public function __construct(Client $client = new Client()) {
+        $this->client = $client;
         $this->configFile = file_get_contents('config.json');
         $this->config = json_decode($this->configFile, true);
     }
 
     /**
      * Function that requests the necessary data according to the parameters passed to return the hotels
-     * @param float|null $latitude
-     * @param float|null $longitude
-     * @param string|null $orderby
-     * @param int|null $page
-     * @param int|null $limit
-     * @param bool|null $responseJson
-     * @param string|null $selectSource
-     * @param array|null $addSources
+     * @param float $latitude
+     * @param float $longitude
+     * @param string $orderby
+     * @param array|null $options
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
      */
     public function getNearbyHotels(
-        ? float $latitude,
-        ? float  $longitude,
-        ? string $orderby = "proximity",
-        ? int $page = 0,
-        ? int $limit = 0,
-        ? bool $responseJson = false,
-        ? string $selectSource = null
+        float $latitude,
+        float  $longitude,
+        string $orderby = "proximity",
+        ? array $options = [
+            'page' => 0,
+            'limit' => 0,
+            'responseJson' => false,
+            'selectSource' => null
+        ]
     ) {
-        $order = in_array($orderby, self::VALID_ORDER_BY) ? $orderby : self::PARAM_ORDER_BY_PROXIMITY;
-        self::verifyIsNull("Latitude", $latitude);
-        self::verifyIsNull("Longitude", $longitude);
+        $this->verifyIsNull($latitude, $longitude);
+        $order = $this->validateOrderBy($orderby);
 
-        if ($selectSource) {
-            self::selectEndPoint($this->config, $selectSource);
+        if ($options["selectSource"]) {
+            $this->selectEndPoint($this->config, $options["selectSource"]);
         }
 
-        $data = self::getDataFromSource($order, $this->config);
+        $data = $this->getDataFromSource($order, $this->config);
+        $dataFormated = $this->addMileage($latitude, $longitude, $data);
+        $dataOrderned = $this->ordering($orderby, $dataFormated);
 
-        $dataFormated = self::addMileage($latitude, $longitude, $data);
-
-        $dataOrderned = self::ordering($orderby, $dataFormated);
-
-        if ($responseJson) {
-            $response = ['orderby' => $orderby];
-            $response = $page === 0 || $limit === 0 ? array_merge($response, ["data" => $dataOrderned]) : array_merge($response, self::pagination($page, $limit, $dataOrderned));
-            return self::response($response);
+        if ($options["responseJson"]) {
+            return $this->response($dataOrderned, $orderby, $options);
         }
 
-        return self::responseList($dataOrderned, $page, $limit);
+        return $this->responseList($dataOrderned, $options["page"], $options["limit"]);
+    }
+
+    /**
+     * Function to generate pagination in the search
+     * @param string|null $orderby
+     * @return string|null
+     */
+    private function validateOrderBy($orderby)
+    {
+        $validOrderBy = ['proximity', 'pricepernight'];
+        return in_array($orderby, $validOrderBy) ? $orderby : 'proximity';
     }
 
     /**
@@ -86,22 +92,16 @@ class Search
      * @param array $data
      * @return array
      */
-    private static function pagination(? int $page, ? int $limit, array $data) : array
+    private function pagination(?int $page, ?int $limit, array $data): array
     {
         $total = count($data);
         $limit = $limit ?? 20;
-        $totalPages = ceil($total / $limit);
-        $page = max($page, 1);
-        $page = min($page, $totalPages);
-        $offset = ($page - 1) * $limit;
-
-        if ($offset < 0) {
-            $offset = 0;
-        }
+        $page = max(1, min($page, ceil($total / $limit)));
+        $offset = max(0, ($page - 1) * $limit);
 
         return [
             'page' => $page,
-            'pages' => $totalPages,
+            'pages' => ceil($total / $limit),
             'data' => array_slice($data, $offset, $limit),
         ];
     }
@@ -112,35 +112,19 @@ class Search
      * @param array $data
      * @return array
      */
-    private static function ordering(string $orderby, array $data) : array
+    private function ordering(string $orderby, array $data): array
     {
-        if ($orderby === self::PARAM_ORDER_BY_PROXIMITY) {
-            $cmp = function ($a, $b) {
-                $kmA = floatval($a["km"]);
-                $kmB = floatval($b["km"]);
-            
-                if ($kmA === $kmB) {
-                    return 0;
-                }
-            
-                return ($kmA < $kmB) ? -1 : 1;
-            };
-        } else {
-            $cmp = function ($a, $b) {
-                $priceA = floatval($a["price"]);
-                $priceB = floatval($b["price"]);
-            
-                if ($priceA == $priceB) {
-                    return 0;
-                } elseif ($priceA < $priceB) {
-                    return -1;
-                } else {
-                    return 1;
-                }
-            };
-        }
+        usort($data, function ($a, $b) use ($orderby) {
+            if ($orderby === self::PARAM_ORDER_BY_PROXIMITY) {
+                $valueA = floatval($a['km']);
+                $valueB = floatval($b['km']);
+            } else {
+                $valueA = floatval($a['price']);
+                $valueB = floatval($b['price']);
+            }
 
-        usort($data, $cmp);
+            return abs($valueA) <=> abs($valueB);
+        });
 
         return $data;
     }
@@ -152,12 +136,12 @@ class Search
      * @param array $data
      * @return array
      */
-    private static function addMileage(float $latitude, float $longitude, array $data) : array
+    private function addMileage(float $latitude, float $longitude, array $data) : array
     {
         $newData = [];
 
         foreach ($data as $item) {
-            $km = self::getDistanceBetweenPointsNew(
+            $km = $this->getDistanceBetweenPointsNew(
                 abs(floatval($latitude)),
                 abs(floatval($longitude)),
                 abs(floatval($item[self::ITEM_PARAM_LAT])),
@@ -184,16 +168,20 @@ class Search
      * @param string $unit
      * @return float
      */
-    private static function getDistanceBetweenPointsNew(float $latitude1, float $longitude1, float $latitude2, float $longitude2, string $unit = 'miles') : float
+    private function getDistanceBetweenPointsNew(float $latitude1, float $longitude1, float $latitude2, float $longitude2, string $unit = 'miles'): float
     {
-        $theta = floatval($longitude1) - floatval($longitude2);
-        $distance = (sin(deg2rad(floatval($latitude1))) * sin(deg2rad(floatval($latitude2)))) + (cos(deg2rad(floatval($latitude1))) * cos(deg2rad(floatval($latitude2))) * cos(deg2rad($theta)));
-        $distance = acos($distance);
-        $distance = rad2deg($distance);
-        $distance = $distance * 60 * 1.1515;
+        $radLatitude1 = deg2rad($latitude1);
+        $radLatitude2 = deg2rad($latitude2);
+        $radLongitudeDiff = deg2rad($longitude1 - $longitude2);
 
-        if ($unit == 'kilometers') {
-            $distance = $distance * 1.609344;
+        $distance = acos(
+            sin($radLatitude1) * sin($radLatitude2) + cos($radLatitude1) * cos($radLatitude2) * cos($radLongitudeDiff)
+        );
+
+        $distance = rad2deg($distance) * 60 * 1.1515;
+
+        if ($unit === 'kilometers') {
+            $distance *= 1.609344;
         }
 
         return round($distance, 2);
@@ -202,19 +190,20 @@ class Search
     /**
      * Function to request data from the given source
      * @param string|null $order
+     * @param array|null $config
      * @return mixed
      * @throws \XLR8\Exception\XLR8Exception
      */
-    public static function getDataFromSource($order, $config)
+    public function getDataFromSource(string $order, array $config)
     {
-        self::verifyIsNull("Order", $order);
+        $this->verifyIsNull("Order", $order);
 
         $cachedData = Cache::get('api_data_' . $order);
         if ($cachedData !== null) {
             return $cachedData;
         }
 
-        $result = self::request('GET', self::getEndPoint($config));
+        $result = $this->request('GET', $this->getEndPoint($config));
 
         if (!in_array('success', $result) || !$result['success']) {
             throw new XLR8Exception("No data found");
@@ -232,11 +221,10 @@ class Search
      * @return mixed
      * @throws \XLR8\Exception\XLR8Exception
      */
-    private static function request(string $method, string $uri, array $params = [])
+    private function request(string $method, string $uri, array $params = [])
     {
         try {
-            $client = new Client();
-            $result = $client->request($method, $uri, $params);
+            $result = $this->client->request($method, $uri, $params);
             $json = $result->getBody()->getContents();
             return json_decode($json, true);
         } catch (GuzzleException $e) {
@@ -246,36 +234,42 @@ class Search
 
     /**
      * Function get to return the endpoint
+     * @param array $config
      * @return string
      */
-    private static function getEndPoint(array $config) : string
+    private function getEndPoint(array $config) : string
     {
-        return $config[self::$selectedEndpoint];
+        return $config[$this->selectedEndpoint];
     }
 
     /**
      * Function to select XLR8 endpoint
+     * @param array $config
      * @param string $nameEndpoint
      * @return void
      */
-    private static function selectEndPoint(array $config, string $nameEndpoint)
+    private function selectEndPoint(array $config, string $nameEndpoint)
     {
         if (in_array($nameEndpoint, $config)) {
-            self::$selectedEndpoint = $config[$nameEndpoint];
+            $this->selectedEndpoint = $config[$nameEndpoint];
         }
     }
 
     /**
      * Function to check if the returned value is not null and thus filter it
-     * @param string $label
-     * @param string|null $value
+     * @param string $lat
+     * @param string $lng
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
      */
-    private static function verifyIsNull(string $label, string $value = null)
+    private function verifyIsNull(string $lat = null, string $lng = null)
     {
-        if (is_null($value) || empty($label)) {
-            throw new XLR8Exception(sprintf(self::ERROR_IS_REQUIRED, $label));
+        if (is_null($lat) || empty($lat)) {
+            throw new XLR8Exception(sprintf(self::ERROR_IS_REQUIRED, "Latitude"));
+        }
+
+        if (is_null($lng) || empty($lng)) {
+            throw new XLR8Exception(sprintf(self::ERROR_IS_REQUIRED, "Longitude"));
         }
     }
 
@@ -288,7 +282,7 @@ class Search
      * @return string
      * @throws \XLR8\Exception\XLR8Exception
      */
-    private static function currencyConvert(float $amount, string $locale = 'pt', string $currency = 'EUR', bool $showSymbol = false) : string
+    private function currencyConvert(float $amount, string $locale = 'pt', string $currency = 'EUR', bool $showSymbol = false) : string
     {
         $fmt = new NumberFormatter($locale, NumberFormatter::CURRENCY);
 
@@ -307,9 +301,10 @@ class Search
 
     /**
      * Function to generate data otimize
+     * @param array $data
      * @return array
      */
-    private static function processLargeData(array $data)
+    private function processLargeData(array $data)
     {
         foreach ($data as $item) {
             yield $item;
@@ -318,20 +313,26 @@ class Search
 
     /**
      * Function to generate the formatted list of the response to be sent to the client
+     * @param array $data
+     * @param int $page
+     * @param int $pageSize
+     * @param string $separator
      * @return void
      * @throws \XLR8\Exception\XLR8Exception
      */
-    private static function responseList(array $data, $page = 0, $pageSize = 0, $separator = " &bull; ")
+    private function responseList(array $data, int $page = 0, int $pageSize = 0, string $separator = " &bull; ")
     {
         $startIndex = ($page - 1) * $pageSize;
         $pagedData = $page === 0 || $pageSize === 0 ? $data : array_slice($data, $startIndex, $pageSize);
 
-        $dataOtimize = self::processLargeData($pagedData);
+        $dataOtimize = $this->processLargeData($pagedData);
         $formatedData = [];
 
         foreach ($dataOtimize as $item) {
-            $formattedItem = sprintf("%s, %s, %s", $item['hotel'], $item['km'] . " KM", self::currencyConvert($item['price']));
-            $formatedData[] = $separator . $formattedItem;
+            if ($item['price'] > 0) {
+                $formattedItem = sprintf("%s, %s, %s", $item['hotel'], $item['km'] . " KM", $this->currencyConvert($item['price']));
+                $formatedData[] = $separator . $formattedItem;
+            }
         }
 
         echo implode('<br/>', $formatedData);
@@ -339,11 +340,19 @@ class Search
 
     /**
      * Function to generate a formatted response to the client as JSON
+     * @param array $data
+     * @param string $orderby
+     * @param array $options
      * @return void
      */
-    private static function response($data)
+    private function response(array $data, string $orderby, array $options)
     {
+        $response = ['orderby' => $orderby];
+        $response = $options["page"] === 0 || $options["limit"] === 0 
+            ? array_merge($response, ["data" => $data])
+            : array_merge($response, $this->pagination($options["page"], $options["limit"], $data));
+        
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode($data);
+        echo json_encode($response);
     }
 }

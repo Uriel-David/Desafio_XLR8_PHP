@@ -28,11 +28,39 @@ try {
     echo $e->getMessage();
 }
 ```
+OR
+```php
+use XLR8\Exception\XLR8Exception;
+use XLR8\Search;
+
+require implode(DIRECTORY_SEPARATOR, [__DIR__, "vendor", "autoload.php"]);
+
+try {
+    $options = [
+        'page' => 1,
+        'limit' => 15,
+        'responseJson' => false | true,
+        'selectSource' => null | 'source_1' | 'any other endpoint in config.json'
+    ];
+    $search = new Search();
+    $search->getNearbyHotels(41.157944, -8.629105, "pricepernight", $options);
+} catch (XLR8Exception $e) {
+    echo $e->getMessage();
+}
+```
 
 Obs.:
 - Default param required `getNearbyHotels($latitude, $longitude)`
-- To set sort by `"pricepernight"` `getNearbyHotels($latitude, $longitude, "pricepernight")`
+- To set sort by `"pricepernight"` => `getNearbyHotels($latitude, $longitude, "pricepernight")`
 - By default sorting is by `"proximity"`
-- Others params: `int $page = 0, int $limit = 0, bool $responseJson = false, string $selectSource = null`
+- Param options:
+    ```php
+        $options = [
+            'page' => 1,
+            'limit' => 15,
+            'responseJson' => false | true,
+            'selectSource' => null | 'source_1' | 'any other endpoint in config.json'
+        ];
+    ```
 
-  Obs.: By default it will bring all the results, if you want pagination then you need to pass the values ​​in the parameters, `$page = selected page` and `$limit = data limit per page`.
+  Obs.: By default it will bring all the results, if you want pagination then you need to pass the values ​​in the options param, `$page => selected page` and `$limit => data limit per page`.
